@@ -2,7 +2,7 @@ from Bio.Seq import Seq
 from enum import Enum
 
 
-class Dir:
+class Dir(Enum):
     fwd = 0
     rev_comp = 1
 
