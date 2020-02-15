@@ -1,6 +1,3 @@
-import sys
-
-sys.path.append(".")
 from absequious import utils
 
 

@@ -19,8 +19,14 @@ class AlnState(Enum):
 
 
 class HMMAln:
+    """
+    attributes:
+    - seq_id: best-matching target
+    - 
+    """
+
     _domain_re = re.compile(
-        "== domain .* score: ([-+]?\d*\.?\d+) bits;  conditional E-value: ([-+]?\d*\.?\d+)"
+        r"== domain .* score: ([-+]?\d*\.?\d+) bits;  conditional E-value: ([-+]?\d*\.?\d+)"
     )
 
     def __init__(self, input):
@@ -32,6 +38,7 @@ class HMMAln:
                 ("Internal pipeline statistics summary", "alignments"),
             ],
         )
+        print(blocks)
         self.seq_id, self.best_match = HMMAln.parse_seq_table(blocks["seq_table"])
         self.score_and_eval, self.annots = HMMAln.parse_aln(
             self.seq_id, blocks["alignments"]
@@ -49,26 +56,27 @@ class HMMAln:
                 "couldn't parse block starting with 'Domain annotation for each sequence': format"
             )
         seq_id = block[0][3:].strip()
+        iden = lambda x: x
         best_match = dict(
-            (label, value)
-            for label, value in zip(
+            (label, conv(value))
+            for (label, conv), value in zip(
                 (
-                    None,
-                    None,
-                    "score",
-                    "bias",
-                    "c-Evalue",
-                    "i-Evalue",
-                    "hmmfrom",
-                    "hmm_to",
-                    None,
-                    "alifrom",
-                    "ali_to",
-                    None,
-                    "env_from",
-                    "env_to",
-                    None,
-                    "acc",
+                    (None, iden),
+                    (None, iden),
+                    ("score", float),
+                    ("bias", float),
+                    ("c-Evalue", float),
+                    ("i-Evalue", float),
+                    ("hmm_from", int),
+                    ("hmm_to", int),
+                    (None, iden),
+                    ("ali_from", int),
+                    ("ali_to", int),
+                    (None, iden),
+                    ("env_from", int),
+                    ("env_to", int),
+                    (None, iden),
+                    ("acc", float),
                 ),
                 block[3].split(),
             )
