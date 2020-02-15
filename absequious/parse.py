@@ -20,20 +20,22 @@ class AlnState(Enum):
 
 class HMMAln:
     _domain_re = re.compile(
-        "== domain .* score: ([-+]?\d*\.?\d+) bits;  conditional e-value: ([-+]?\d*\.?\d+)"
+        "== domain .* score: ([-+]?\d*\.?\d+) bits;  conditional E-value: ([-+]?\d*\.?\d+)"
     )
 
     def __init__(self, input):
         blocks = HMMAln.split_at_boundaries(
             input,
             [
-                ("", None),
-                ("Domain annotation for each sequence", "seq_table"),
-                ("Alignments for each domain", "alignments"),
-                ("Internal pipeline statistics summary", None),
+                ("Domain annotation for each sequence", None),
+                ("Alignments for each domain", "seq_table"),
+                ("Internal pipeline statistics summary", "alignments"),
             ],
         )
-        seq_id, best_match = HMMAln.parse_seq_table(blocks["seq_table"])
+        self.seq_id, self.best_match = HMMAln.parse_seq_table(blocks["seq_table"])
+        self.score_and_eval, self.annots = HMMAln.parse_aln(
+            self.seq_id, blocks["alignments"]
+        )
 
     @staticmethod
     def parse_seq_table(block):
@@ -96,18 +98,17 @@ class HMMAln:
         for ref, score, tgt in zip(ref_guide, scores, tgt_guide):
             if ref == ".":
                 annots.append(AlnState.insert)
-            elif ref.isupper() and tgt == ref:
+            elif tgt.lower() == ref.lower():
                 annots.append(AlnState.match_high)
             elif score == "+":
                 annots.append(AlnState.match_low)
             elif tgt == "-":
                 annots.append(AlnState.delete)
-            elif ref == ".":
-                annots.append(AlnState.insert)
             elif score == " ":
                 annots.append(AlnState.mismatch)
             else:
-                raise Unreachable()
+                raise Unreachable(ref, score, tgt)
+        return score_and_eval, annots
 
     @staticmethod
     def split_at_boundaries(input, boundaries):
@@ -119,7 +120,7 @@ class HMMAln:
         ret = {}
         curr_bound, curr_nom, buff = "", None, []
         for line_ in input:
-            line = line.strip()
+            line = line_.strip()
             if line.startswith(curr_bound):
                 if curr_nom:
                     ret[curr_nom] = buff
