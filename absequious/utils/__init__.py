@@ -1,5 +1,9 @@
-from Bio.Seq import Seq
+import sys
 from enum import Enum
+import inspect
+import os
+from Bio.Seq import Seq
+from pathlib import Path
 
 
 class Dir(Enum):
@@ -42,3 +46,16 @@ def translate_six(dna):
                 )
             )
     return ret
+
+
+def get_script_dir(follow_symlinks=True):
+    """
+    https://stackoverflow.com/questions/3718657/how-to-properly-determine-current-script-directory/22881871#22881871
+    """
+    if getattr(sys, "frozen", False):  # py2exe, PyInstaller, cx_Freeze
+        path = Path(sys.executable).resolve()
+    else:
+        path = Path(inspect.getabsfile(get_script_dir))
+    if follow_symlinks:
+        path = path.resolve()
+    return path.parent.parent

@@ -1,5 +1,5 @@
-from enum import Enum
 import re
+from enum import Enum
 
 
 class ParseError(ValueError):
@@ -38,7 +38,6 @@ class HMMAln:
                 ("Internal pipeline statistics summary", "alignments"),
             ],
         )
-        print(blocks)
         self.seq_id, self.best_match = HMMAln.parse_seq_table(blocks["seq_table"])
         self.score_and_eval, self.annots = HMMAln.parse_aln(
             self.seq_id, blocks["alignments"]
