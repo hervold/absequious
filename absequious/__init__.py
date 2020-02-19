@@ -1,3 +1,14 @@
+from enum import Enum
+
+
+class AlnState(Enum):
+    match_high = 0
+    match_low = 1
+    mismatch = 2
+    insert = 3
+    delete = 4
+
+
 def get_script_dir(follow_symlinks=True):
     """
     https://stackoverflow.com/questions/3718657/how-to-properly-determine-current-script-directory/22881871#22881871

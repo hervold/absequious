@@ -1,5 +1,6 @@
 import re
 from enum import Enum
+from . import AlnState
 
 
 class ParseError(ValueError):
@@ -8,14 +9,6 @@ class ParseError(ValueError):
 
 class Unreachable(ValueError):
     pass
-
-
-class AlnState(Enum):
-    match_high = 0
-    match_low = 1
-    mismatch = 2
-    insert = 3
-    delete = 4
 
 
 class HMMAln:
@@ -38,6 +31,7 @@ class HMMAln:
                 ("Internal pipeline statistics summary", "alignments"),
             ],
         )
+        self._blocks = blocks
         self.seq_id, self.best_match = HMMAln.parse_seq_table(blocks["seq_table"])
         self.score_and_eval, self.annots = HMMAln.parse_aln(
             self.seq_id, blocks["alignments"]
