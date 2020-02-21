@@ -1,13 +1,9 @@
 import re
 from enum import Enum
-from . import AlnState
+from . import AlnState, Unreachable
 
 
 class ParseError(ValueError):
-    pass
-
-
-class Unreachable(ValueError):
     pass
 
 
@@ -98,15 +94,15 @@ class HMMAln:
         annots = []
         for ref, score, tgt in zip(ref_guide, scores, tgt_guide):
             if ref == ".":
-                annots.append(AlnState.insert)
+                annots.append((tgt, AlnState.insert))
             elif tgt.lower() == ref.lower():
-                annots.append(AlnState.match_high)
+                annots.append((tgt, AlnState.match_high))
             elif score == "+":
-                annots.append(AlnState.match_low)
+                annots.append((tgt, AlnState.match_low))
             elif tgt == "-":
-                annots.append(AlnState.delete)
+                annots.append((tgt, AlnState.delete))
             elif score == " ":
-                annots.append(AlnState.mismatch)
+                annots.append((tgt, AlnState.mismatch))
             else:
                 raise Unreachable(ref, score, tgt)
         return score_and_eval, annots

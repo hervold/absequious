@@ -1,6 +1,10 @@
 from enum import Enum
 
 
+class Unreachable(ValueError):
+    pass
+
+
 class AlnState(Enum):
     match_high = 0
     match_low = 1

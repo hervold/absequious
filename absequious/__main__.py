@@ -8,10 +8,9 @@ from Bio import SeqIO
 
 from . import utils
 from .parse import HMMAln
-from .algo import insert_padding
+from .algo import insert_padding, multi_aln
 
 DEFAULT_HMM = Path(utils.get_script_dir()) / "data" / "ighv.hmm"
-import time
 
 
 def trans6(rec, fout):
@@ -37,7 +36,9 @@ def single_pipeline(rec, temp_dir):
             raw_aln = subprocess.run(
                 ["hmmsearch", args.hmm, trans_f.name], stdout=subprocess.PIPE
             )
-            return HMMAln(StringIO(raw_aln.stdout.decode("utf-8")))
+            x = HMMAln(StringIO(raw_aln.stdout.decode("utf-8")))
+            print(x.seq_id)
+            return x
 
 
 def run_pipeline(args):
@@ -45,9 +46,13 @@ def run_pipeline(args):
     with TemporaryDirectory() as temp_dir, open(args.filename) as fin:
         for rec in SeqIO.parse(fin, "fasta"):
             alns.append(single_pipeline(rec, temp_dir))
+            print("///", alns[-1].best_match)
+    print("~~~ num:", len(alns))
     padding_by_pos = insert_padding(alns)
     print(alns[0]._blocks)
     print("~~~", padding_by_pos)
+    for s in multi_aln(padding_by_pos, alns):
+        print(s)
 
 
 if __name__ == "__main__":
