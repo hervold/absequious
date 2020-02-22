@@ -3,7 +3,9 @@ import subprocess
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory, NamedTemporaryFile
-
+import csv
+from multiprocessing import Pool
+import multiprocessing
 from Bio import SeqIO
 
 from . import utils
@@ -29,7 +31,8 @@ def run_trans6(args):
             trans6(rec, fout)
 
 
-def single_pipeline(rec, temp_dir):
+def single_pipeline(t):
+    rec, temp_dir = t
     with TemporaryDirectory() as temp_dir, open(args.filename) as fin:
         with NamedTemporaryFile(dir=temp_dir, suffix=".trans.fa") as trans_f:
             trans6(rec, trans_f)
@@ -42,22 +45,30 @@ def single_pipeline(rec, temp_dir):
 
 
 def run_pipeline(args):
-    alns = []
     with TemporaryDirectory() as temp_dir, open(args.filename) as fin:
-        for rec in SeqIO.parse(fin, "fasta"):
-            alns.append(single_pipeline(rec, temp_dir))
-            print("///", alns[-1].best_match)
-    print("~~~ num:", len(alns))
+        if not args.no_multiprocess:
+            alns = []
+            for rec in SeqIO.parse(fin, "fasta"):
+                alns.append(single_pipeline((rec, temp_dir)))
+        else:
+            with Pool(multiprocessing.cpu_count()) as p:
+                alns = p.map(
+                    single_pipeline,
+                    ((rec, temp_dir) for rec in SeqIO.parse(fin, "fasta")),
+                )
+        print("///", alns[-1].best_match)
     padding_by_pos = insert_padding(alns)
-    print(alns[0]._blocks)
-    print("~~~", padding_by_pos)
-    for s in multi_aln(padding_by_pos, alns):
-        print(s)
+    for s, aln in zip(multi_aln(padding_by_pos, alns), alns):
+        print(f'{aln.best_match["hmm_from"]:03d}:{aln.best_match["hmm_to"]:03d}  {s}')
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.set_defaults(func=lambda _: parser.print_help())
+    parser.add_argument(
+        "-T", "--no-multiprocess", action="store_false", help="disable multiprocessing"
+    )
+
     subparsers = parser.add_subparsers()
 
     trans_args = subparsers.add_parser(

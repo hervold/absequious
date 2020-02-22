@@ -79,7 +79,7 @@ class HMMAln:
 
     @staticmethod
     def parse_aln(seq_id, block):
-        score_and_eval = HMMAln._domain_re.match(block[0]) if block else None
+        score_and_eval = HMMAln._domain_re.match(block[0]).groups() if block else None
         if len(block) < 5 or not score_and_eval or not block[3].startswith(seq_id):
             raise ParseError(
                 "couldn't parse block starting with 'Domain annotation for each sequence': format"
@@ -101,10 +101,8 @@ class HMMAln:
                 annots.append((tgt, AlnState.match_low))
             elif tgt == "-":
                 annots.append((tgt, AlnState.delete))
-            elif score == " ":
-                annots.append((tgt, AlnState.mismatch))
             else:
-                raise Unreachable(ref, score, tgt)
+                annots.append((tgt, AlnState.mismatch))
         return score_and_eval, annots
 
     @staticmethod
