@@ -58,8 +58,11 @@ def run_pipeline(args):
                 )
         print("///", alns[-1].best_match)
     padding_by_pos = insert_padding(alns)
-    for s, aln in zip(multi_aln(padding_by_pos, alns), alns):
-        print(f'{aln.best_match["hmm_from"]:03d}:{aln.best_match["hmm_to"]:03d}  {s}')
+    for doms, aln in zip(multi_aln(padding_by_pos, alns), alns):
+        padded_seq = "|".join(s for _, s in doms)
+        print(
+            f'{aln.best_match["hmm_from"]:03d}:{aln.best_match["hmm_to"]:03d}  {padded_seq}'
+        )
 
 
 if __name__ == "__main__":
