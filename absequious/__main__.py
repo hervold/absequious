@@ -37,7 +37,8 @@ def single_pipeline(t):
         with NamedTemporaryFile(dir=temp_dir, suffix=".trans.fa") as trans_f:
             trans6(rec, trans_f)
             raw_aln = subprocess.run(
-                ["hmmsearch", args.hmm, trans_f.name], stdout=subprocess.PIPE
+                ["hmmsearch", "--notextw", args.hmm, trans_f.name],
+                stdout=subprocess.PIPE,
             )
             x = HMMAln(StringIO(raw_aln.stdout.decode("utf-8")))
             print(x.seq_id)

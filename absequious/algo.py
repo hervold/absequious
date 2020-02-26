@@ -43,24 +43,22 @@ def multi_aln(padding_ctr, alignments, DOMS=DOMAIN_LENS):
         else:
             dom_name, dom_len = "", float("inf")
         if strip_start:
-            for i in range(strip_start):
-                acc.extend("-" for _ in range(max(1, padding_ctr.get(i, 1))))
+            for i in range(min(strip_start, dom_len if dom_len > 1 else strip_start)):
+                acc.extend("-" for _ in range(padding_ctr.get(i, 1)))
+
             if strip_start > dom_len:
-                print(1)
-                return split(
+                return [(dom_name, "".join(acc))] + split(
                     domain_lens[1:] if domain_lens else [],
                     strip_start - dom_len,
                     annots,
-                    start_pos + dom_len,
-                    acc,
+                    0,
+                    [],
                 )
-            # dom_len > strip_start
+            # else: dom_len > strip_start
             dom_len -= strip_start
 
         for pos in range(start_pos, len(annots)):
             tgt, state = annots[pos]
-
-            print(f"{tgt}")
             if state is AlnState.insert:
                 acc.append(tgt)
             elif state is AlnState.delete:
@@ -71,11 +69,14 @@ def multi_aln(padding_ctr, alignments, DOMS=DOMAIN_LENS):
                 acc.append(tgt.lower())
             else:
                 raise Unreachable()
+
+            if padding_ctr.get(pos, 1) > 1:
+                acc.extend("-" for _ in range(padding_ctr[pos] - 1))
+
             # handle domain labels
             if state is not AlnState.insert:
                 dom_len -= 1
                 if dom_len < 1:
-                    print(2)
                     return [(dom_name, "".join(acc))] + split(
                         domain_lens[1:] if domain_lens else (), 0, annots, pos + 1, []
                     )
