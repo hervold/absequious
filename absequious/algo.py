@@ -7,14 +7,16 @@ DOMAIN_LENS = (
     ("H-CDR1", 8),
     ("H-FR2", 17),
     ("H-CDR2", 8),
-    ("H-FR3", 38),
+    ("H-FR3", 39),
+    ("H-CDR3", 15),
+    ("H-FR4", 11),
 )
 
 
 def _update_ins_ct(ins_cts, aln_states, pos):
     last_pos = pos
     ct = 0
-    for state in aln_states:
+    for _, state in aln_states:
         if state == AlnState.insert:
             ct += 1
         else:
@@ -26,14 +28,17 @@ def _update_ins_ct(ins_cts, aln_states, pos):
         ins_cts[last_pos] = max(ins_cts[last_pos], ct)
 
 
-def insert_padding(alignments):
+def _insert_padding(ctr, alignments):
     """
     given a list of alignments, find the maximum number of insertions at each position
     """
-    ctr = Counter()
     for aln in alignments:
         _update_ins_ct(ctr, aln.annots, aln.best_match["hmm_from"])
     return ctr
+
+
+def insert_padding(alignments):
+    return _insert_padding(Counter(), alignments)
 
 
 def multi_aln(padding_ctr, alignments, DOMS=DOMAIN_LENS):

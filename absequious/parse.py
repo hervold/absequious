@@ -130,3 +130,16 @@ class HMMAln:
         if buff and curr_nom:
             ret[curr_nom] = buff
         return ret
+
+
+def annot_fmt(annots):
+    return "".join(
+        {
+            AlnState.mismatch: "x",
+            AlnState.insert: "i",
+            AlnState.match_high: "M",
+            AlnState.match_low: "M",
+            AlnState.delete: "d",
+        }[a]
+        for _, a in annots
+    )

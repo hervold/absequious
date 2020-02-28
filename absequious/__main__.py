@@ -9,7 +9,7 @@ import multiprocessing
 from Bio import SeqIO
 
 from . import utils
-from .parse import HMMAln
+from .parse import HMMAln, annot_fmt
 from .algo import insert_padding, multi_aln
 
 DEFAULT_HMM = Path(utils.get_script_dir()) / "data" / "ighv.hmm"
@@ -64,6 +64,9 @@ def run_pipeline(args):
         print(
             f'{aln.best_match["hmm_from"]:03d}:{aln.best_match["hmm_to"]:03d}  {padded_seq}'
         )
+        print(padding_by_pos)
+        print(",".join(str(padding_by_pos.get(i, ".")) for i in range(96, 123)))
+        print()
 
 
 if __name__ == "__main__":
