@@ -1,5 +1,9 @@
+from collections import Counter, OrderedDict
+from itertools import zip_longest
+
+import pandas as pd
+
 from . import AlnState, Unreachable
-from collections import Counter
 
 # length of each domain in reference space
 DOMAIN_LENS = (
@@ -11,6 +15,9 @@ DOMAIN_LENS = (
     ("H-CDR3", 15),
     ("H-FR4", 11),
 )
+
+# FIXME: grab this from hmmsearch output
+HMM_LEN = 122
 
 
 def _update_ins_ct(ins_cts, aln_states, pos):
@@ -41,15 +48,23 @@ def insert_padding(alignments):
     return _insert_padding(Counter(), alignments)
 
 
-def multi_aln(padding_ctr, alignments, DOMS=DOMAIN_LENS):
+def split_and_pad(padding_ctr, aln, DOMS=DOMAIN_LENS):
+    """
+    given @padding_ctr and HMMAln @aln, split the aligned sequence at domain boundaries and
+    insert padding
+    """
+
     def split(domain_lens, strip_start, annots, start_pos, acc):
         if domain_lens:
             dom_name, dom_len = domain_lens[0]
         else:
             dom_name, dom_len = "", float("inf")
         if strip_start:
-            for i in range(min(strip_start, dom_len if dom_len > 1 else strip_start)):
-                acc.extend("-" for _ in range(padding_ctr.get(i, 1)))
+            if padding_ctr is not None:
+                for i in range(
+                    min(strip_start, dom_len if dom_len > 1 else strip_start)
+                ):
+                    acc.extend("-" for _ in range(padding_ctr.get(i, 1)))
 
             if strip_start > dom_len:
                 return [(dom_name, "".join(acc))] + split(
@@ -75,7 +90,7 @@ def multi_aln(padding_ctr, alignments, DOMS=DOMAIN_LENS):
             else:
                 raise Unreachable()
 
-            if padding_ctr.get(pos, 1) > 1:
+            if padding_ctr is not None and padding_ctr.get(pos, 1) > 1:
                 acc.extend("-" for _ in range(padding_ctr[pos] - 1))
 
             # handle domain labels
@@ -87,6 +102,70 @@ def multi_aln(padding_ctr, alignments, DOMS=DOMAIN_LENS):
                     )
         return [(dom_name, "".join(acc))] if acc else []
 
-    return [
-        split(DOMS, aln.best_match["hmm_from"], aln.annots, 0, []) for aln in alignments
+    return split(DOMS, aln.best_match["hmm_from"], aln.annots, 0, [])
+
+
+def multi_aln(padding_ctr, alignments, DOMS=DOMAIN_LENS):
+    return [split_and_pad(padding_ctr, aln, DOMS) for aln in alignments]
+
+
+def has_frameshift(aln):
+    """
+    heuristics for determining whether a frameshift is present.
+
+    TODO: we should incorporate quality scores, if available
+    """
+    if aln.best_match["hmm_from"] > 2 and aln.best_match["tgt_from"] > 2:
+        return True
+    if (
+        aln.best_match["hmm_to"] < HMM_LEN - 1
+        and aln.best_match["tgt_to"] < aln.tgt_len - 1
+    ):
+        return True
+    return False
+
+
+def has_stop(aln):
+    return "*" in aln.tgt_seq[aln.best_match["tgt_from"] : aln.best_match["tgt_to"]]
+
+
+def report(alignments):
+    padding_by_pos = None  # insert_padding([x for x in alignments if x is not None])
+    padded_alns = [
+        None if aln is None else split_and_pad(padding_by_pos, aln)
+        for aln in alignments
     ]
+    _df = OrderedDict(
+        (k, [])
+        for k in ["read"]
+        + [nom for nom, _ in DOMAIN_LENS]
+        + ["complete?", "frameshift?", "stop?",]
+    )
+    for aln, padded_aln in zip(alignments, padded_alns):
+        if aln is not None:
+            _df["read"].append(aln.seq_id)
+            for (dom_name, _), (_, padded_seq) in zip_longest(
+                DOMAIN_LENS, padded_aln, fillvalue=("", "")
+            ):
+                _df[dom_name].append(padded_seq)
+            _df["complete?"].append(len(padded_aln) == 7)
+            _df["frameshift?"].append(has_frameshift(aln))
+            _df["stop?"].append(has_stop(aln))
+
+    frac_complete = sum(_df["complete?"]) / len(_df["complete?"])
+    frac_frame = sum(_df["frameshift?"]) / len(_df["frameshift?"])
+    frac_stop = sum(_df["stop?"]) / len(_df["stop?"])
+
+    for col in _df.keys():
+        _df[col].append("")
+    for col in list(_df.keys())[:-3]:
+        _df[col].append("")
+        _df[col].append("")
+    _df["complete?"].append("frac complete")
+    _df["complete?"].append(frac_complete)
+    _df["frameshift?"].append("frac with frameshift")
+    _df["frameshift?"].append(frac_frame)
+    _df["stop?"].append("frac with stop")
+    _df["stop?"].append(frac_stop)
+
+    return pd.DataFrame(_df)

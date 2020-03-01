@@ -1,9 +1,14 @@
 import re
 from enum import Enum
+
 from . import AlnState, Unreachable
 
 
 class ParseError(ValueError):
+    pass
+
+
+class NoAlignmentFound(ValueError):
     pass
 
 
@@ -18,7 +23,7 @@ class HMMAln:
         r"== domain .* score: ([-+]?\d*\.?\d+) bits;  conditional E-value: ([-+]?\d*\.?\d+)"
     )
 
-    def __init__(self, input):
+    def __init__(self, input, translated):
         blocks = HMMAln.split_at_boundaries(
             input,
             [
@@ -29,6 +34,10 @@ class HMMAln:
         )
         self._blocks = blocks
         self.seq_id, self.best_match = HMMAln.parse_seq_table(blocks["seq_table"])
+
+        self.tgt_seq = translated[self.seq_id]
+        self.tgt_len = len(self.tgt_seq)
+
         self.score_and_eval, self.annots = HMMAln.parse_aln(
             self.seq_id, blocks["alignments"]
         )
@@ -36,13 +45,19 @@ class HMMAln:
     @staticmethod
     def parse_seq_table(block):
         if (
+            block
+            and block[0] == "[No targets detected that satisfy reporting thresholds]"
+        ):
+            raise NoAlignmentFound()
+        if (
             len(block) < 4
             or not block[0].startswith(">>")
             or not block[1].startswith("#")
             or not block[2].startswith("--")
         ):
             raise ParseError(
-                "couldn't parse block starting with 'Domain annotation for each sequence': format"
+                "couldn't parse block starting with 'Domain annotation for each sequence': format",
+                block,
             )
         seq_id = block[0][3:].strip()
         iden = lambda x: x
@@ -59,8 +74,8 @@ class HMMAln:
                     ("hmm_from", int),
                     ("hmm_to", int),
                     (None, iden),
-                    ("ali_from", int),
-                    ("ali_to", int),
+                    ("tgt_from", int),
+                    ("tgt_to", int),
                     (None, iden),
                     ("env_from", int),
                     ("env_to", int),
