@@ -3,7 +3,6 @@ import csv
 import multiprocessing
 import subprocess
 import sys
-from contextlib import nullcontext
 from io import StringIO
 from multiprocessing import Pool
 from pathlib import Path
@@ -11,8 +10,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 from Bio import SeqIO
 
-from . import utils
-from .algo import report
+from . import utils, algo
 from .parse import HMMAln, NoAlignmentFound, annot_fmt
 
 DEFAULT_HMM = Path(utils.get_script_dir()) / "data" / "ighv.hmm"
@@ -66,16 +64,31 @@ def run_pipeline(args):
                     single_pipeline,
                     ((rec, temp_dir) for rec in SeqIO.parse(fin, "fasta")),
                 )
-    fail_ct = sum(1 for x in alns if x is None)
-    df = report(alns)
-    with (
-        nullcontext(sys.stdout)
-        if args.output_filename == "-"
-        else open(args.output_filename, "w")
-    ) as fout:
-        df.to_csv(fout, index=False)
-        fout.flush()
-        fout.write("\nfail_ct: {:d}\n".format(fail_ct))
+
+    df = algo.report(alns)
+    summ = algo.summary(df, alns)
+    freq = algo.cdr3_freq(df, alns)
+
+    def dump_m(l, fout):
+        for t in l:
+            fout.write(",".join(map(str, t)))
+            fout.write("\n")
+
+    if args.output_base == "-":
+        # write everything to stdout
+        dump_m(summ, sys.stdout)
+        sys.stdout.write("\n")
+        dump_m(freq, sys.stdout)
+        sys.stdout.write("\n")
+        df.to_csv(sys.stdout, index=False)
+
+    else:
+        with open(args.output_base + "_reads.csv", "w") as fout:
+            df.to_csv(fout, index=False)
+        with open(args.output_base + "_summ.csv", "w") as fout:
+            dump_m(summ, fout)
+            fout.write("\n")
+            dump_m(freq, fout)
 
 
 if __name__ == "__main__":
@@ -98,7 +111,10 @@ if __name__ == "__main__":
         "aln", help="translate DNA and align resulting protein sequences to HMM"
     )
     aln_args.add_argument("input_filename")
-    aln_args.add_argument("output_filename")
+    aln_args.add_argument(
+        "output_base",
+        help="root of output filename; given foo, we create foo_cdr3.csv and foo.csv",
+    )
     aln_args.add_argument("--hmm", default=DEFAULT_HMM)
     aln_args.set_defaults(func=run_pipeline)
 

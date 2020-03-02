@@ -152,20 +152,38 @@ def report(alignments):
             _df["frameshift?"].append(has_frameshift(aln))
             _df["stop?"].append(has_stop(aln))
 
-    frac_complete = sum(_df["complete?"]) / len(_df["complete?"])
-    frac_frame = sum(_df["frameshift?"]) / len(_df["frameshift?"])
-    frac_stop = sum(_df["stop?"]) / len(_df["stop?"])
-
-    for col in _df.keys():
-        _df[col].append("")
-    for col in list(_df.keys())[:-3]:
-        _df[col].append("")
-        _df[col].append("")
-    _df["complete?"].append("frac complete")
-    _df["complete?"].append(frac_complete)
-    _df["frameshift?"].append("frac with frameshift")
-    _df["frameshift?"].append(frac_frame)
-    _df["stop?"].append("frac with stop")
-    _df["stop?"].append(frac_stop)
-
     return pd.DataFrame(_df)
+
+
+def summary(report, alns):
+    failed = sum(1 for x in alns if x is None)
+    tot = len(report) + failed
+    return (
+        ("failed", failed / (len(report) + failed), failed, tot),
+        ("complete", report["complete?"].sum() / tot, report["complete?"].sum(), tot,),
+        (
+            "frameshift",
+            report["frameshift?"].sum() / tot,
+            report["frameshift?"].sum(),
+            tot,
+        ),
+        ("stop_codon", report["stop?"].sum() / tot, report["stop?"].sum(), tot),
+    )
+
+
+def cdr3_freq(report, alns):
+    """
+    return a list of tuples of the form:
+      (cdr3_sequene, fraction, count, total_reads)
+    CDR3s with only 1 read are dropped
+    """
+    failed = sum(1 for x in alns if x is None)
+    tot = len(report) + failed
+    cdr3_cts = []
+    report.groupby("H-CDR3").apply(
+        lambda x: cdr3_cts.append(
+            (x["H-CDR3"].values[0], x.count()[0] / tot, x.count()[0], tot)
+        )
+    )
+    cdr3_cts.sort(key=(lambda row: row[1]), reverse=True)
+    return [t for t in cdr3_cts if t[2] > 1]
