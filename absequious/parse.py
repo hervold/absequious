@@ -2,6 +2,7 @@ import re
 from enum import Enum
 
 from . import AlnState, Unreachable
+from .utils import revcomp
 
 
 class ParseError(ValueError):
@@ -23,7 +24,7 @@ class HMMAln:
         r"== domain .* score: ([-+]?\d*\.?\d+) bits;  conditional E-value: ([-+]?\d*\.?\d+)"
     )
 
-    def __init__(self, input, translated):
+    def __init__(self, input, dna_seq, translated):
         blocks = HMMAln.split_at_boundaries(
             input,
             [
@@ -36,6 +37,10 @@ class HMMAln:
         self.seq_id, self.best_match = HMMAln.parse_seq_table(blocks["seq_table"])
 
         self.tgt_seq = translated[self.seq_id]
+        comp, offs = self.seq_id.split(":")[-2:]
+        if not offs.startswith("offset_"):
+            raise ParseError(f'WTF offset "{offs}"')
+        self.dna_seq = (dna_seq if comp == "fwd" else revcomp(dna_seq))[int(offs[7:]) :]
         self.tgt_len = len(self.tgt_seq)
 
         self.score_and_eval, self.annots = HMMAln.parse_aln(

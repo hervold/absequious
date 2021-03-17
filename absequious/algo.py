@@ -1,6 +1,6 @@
 from collections import Counter, OrderedDict
 from itertools import zip_longest
-
+from skbio.diversity import alpha
 import pandas as pd
 
 from . import AlnState, Unreachable
@@ -137,17 +137,21 @@ def report(alignments):
     ]
     _df = OrderedDict(
         (k, [])
-        for k in ["read"]
+        for k in ["read", "dna_in_frame", "protein"]
         + [nom for nom, _ in DOMAIN_LENS]
         + ["complete?", "frameshift?", "stop?",]
     )
     for aln, padded_aln in zip(alignments, padded_alns):
         if aln is not None:
             _df["read"].append(aln.seq_id)
+            _df["dna_in_frame"].append(aln.dna_seq)
+            _df["protein"].append(
+                ("".join(s for _, s in padded_aln)).upper().replace("-", "")
+            )
             for (dom_name, _), (_, padded_seq) in zip_longest(
                 DOMAIN_LENS, padded_aln, fillvalue=("", "")
             ):
-                _df[dom_name].append(padded_seq)
+                _df[dom_name].append(padded_seq.upper().replace("-", ""))
             _df["complete?"].append(len(padded_aln) == 7)
             _df["frameshift?"].append(has_frameshift(aln))
             _df["stop?"].append(has_stop(aln))
@@ -159,22 +163,29 @@ def summary(report, alns):
     failed = sum(1 for x in alns if x is None)
     tot = len(report) + failed
     return (
-        ("failed", failed / (len(report) + failed), failed, tot),
-        ("complete", report["complete?"].sum() / tot, report["complete?"].sum(), tot,),
+        ("failed", "", failed / (len(report) + failed), failed, tot),
+        (
+            "complete",
+            "",
+            report["complete?"].sum() / tot,
+            report["complete?"].sum(),
+            tot,
+        ),
         (
             "frameshift",
+            "",
             report["frameshift?"].sum() / tot,
             report["frameshift?"].sum(),
             tot,
         ),
-        ("stop_codon", report["stop?"].sum() / tot, report["stop?"].sum(), tot),
+        ("stop_codon", "", report["stop?"].sum() / tot, report["stop?"].sum(), tot),
     )
 
 
 def cdr3_freq(report, alns):
     """
     return a list of tuples of the form:
-      (cdr3_sequene, fraction, count, total_reads)
+      (cdr3_sequence, fraction, count, total_reads)
     CDR3s with only 1 read are dropped
     """
     failed = sum(1 for x in alns if x is None)
@@ -187,3 +198,36 @@ def cdr3_freq(report, alns):
     )
     cdr3_cts.sort(key=(lambda row: row[1]), reverse=True)
     return [t for t in cdr3_cts if t[2] > 1]
+
+
+def full_seq_freq(report, alns):
+    """
+    return a list of tuples of the form:
+      (sequence, fraction, count, total_reads)
+    where sequence is the complete sequence
+    sequences with only 1 read are dropped
+    """
+    failed = sum(1 for x in alns if x is None)
+    tot = len(report) + failed
+    good_ctr, all_ctr, seq_to_cdr3 = Counter(), Counter(), {}
+    for _, row in report.iterrows():
+        seq = "".join(row[domain] for domain, _ in DOMAIN_LENS)
+        seq = seq.replace("-", "").upper()
+        seq_to_cdr3[seq] = row["H-CDR3"].replace("-", "").upper()
+        all_ctr[seq] += 1
+        if row["complete?"] and not row["frameshift?"]:
+            good_ctr[seq] += 1
+
+    singletons, ret = 0, []
+    for seq, ct in good_ctr.most_common():
+        if ct < 2:
+            singletons += 1
+        else:
+            ret.append((seq, seq_to_cdr3[seq], ct / tot, ct, tot))
+    ret.insert(0, ("", "", "", "", ""))
+    ret.insert(0, ("unique_singleton_sequences", "", singletons / tot, singletons, tot))
+    ret.insert(
+        0,
+        ("chao1_estimated_diversity", "", "", "", alpha.chao1(list(all_ctr.values()))),
+    )
+    return ret
